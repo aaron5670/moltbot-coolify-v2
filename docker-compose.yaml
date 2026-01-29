@@ -3,7 +3,7 @@ services:
     build:
       context: .
       args:
-        - CLAWDBOT_BETA=${CLAWDBOT_BETA:-0}
+        - MOLT_BOT_BETA=${MOLT_BOT_BETA:-0}
     user: 'node'
     restart: on-failure:3
     ulimits:
