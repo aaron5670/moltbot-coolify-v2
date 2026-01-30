@@ -1,28 +1,22 @@
 #!/usr/bin/env bash
 set -e
 
-# State directories - Moltbot/Clawdbot overlap
-# Binary might look for either depending on version
-# State directories
-MOLT_STATE="/root/.moltbot"
-CLAW_STATE="/root/.clawdbot"
-CONFIG_FILE="$MOLT_STATE/moltbot.json"
-WORKSPACE_DIR="/root/molt"
+# State directories for OpenClaw
+OPENCLAW_STATE="/root/.openclaw"
+CONFIG_FILE="$OPENCLAW_STATE/openclaw.json"
+WORKSPACE_DIR="/root/openclaw"
 
-mkdir -p "$MOLT_STATE" "$CLAW_STATE" "$WORKSPACE_DIR"
-chmod 700 "$MOLT_STATE" "$CLAW_STATE"
+mkdir -p "$OPENCLAW_STATE" "$WORKSPACE_DIR"
+chmod 700 "$OPENCLAW_STATE"
 
 # Tighten permissions on config if it exists
 if [ -f "$CONFIG_FILE" ]; then
   chmod 600 "$CONFIG_FILE"
 fi
-if [ -f "$MOLT_STATE/clawdbot.json" ]; then
-  chmod 600 "$MOLT_STATE/clawdbot.json"
-fi
 
 # Ensure credentials dir exists
-mkdir -p "$MOLT_STATE/credentials"
-chmod 700 "$MOLT_STATE/credentials"
+mkdir -p "$OPENCLAW_STATE/credentials"
+chmod 700 "$OPENCLAW_STATE/credentials"
 
 # Universal Permission Hardening (Runtime Fail-safe)
 # Ensures all global binaries are always executable
@@ -35,8 +29,8 @@ chmod -R +x /usr/local/bin/ || true
 echo "🕵️ SEARCHING FOR MISSING TOOLS..."
 POSSIBLE_PATHS=(
   "/root/.bun/bin"
-  "/root/.moltbot/cache/.bun/bin"
-  "/root/.moltbot/bin"
+  "/root/.openclaw/cache/.bun/bin"
+  "/root/.openclaw/bin"
   "/root/.local/bin"
   "/home/node/.bun/bin"
   "/root/.bun/install/global/bin"
@@ -73,14 +67,14 @@ rescue_binary() {
 }
 
 # Rescue critical tools
-for target in moltbot gemini codex opencode claude kimi; do
+for target in openclaw gemini codex opencode claude kimi; do
   rescue_binary "$target"
 done
 # ----------------------------------------------------
 
 # Tool Audit
 echo "🔍 AUDITING AI TOOL SUITE..."
-for tool in moltbot claude kimi opencode gemini codex; do
+for tool in openclaw claude kimi opencode gemini codex; do
   if command -v "$tool" >/dev/null 2>&1; then
     echo "✅ $tool: $(command -v "$tool")"
   else
@@ -92,8 +86,7 @@ done
 echo "alias fd=fdfind" >> /root/.bashrc
 echo "alias bat=batcat" >> /root/.bashrc
 echo "alias ll='ls -alF'" >> /root/.bashrc
-echo "alias molty='moltbot'" >> /root/.bashrc
-echo "alias clawd='moltbot'" >> /root/.bashrc
+echo "alias claw='openclaw'" >> /root/.bashrc
 
 # Generate config on first boot
 if [ ! -f "$CONFIG_FILE" ]; then
@@ -170,7 +163,7 @@ cat >"$CONFIG_FILE" <<EOF
   },
   "agents": {
     "defaults": {
-      "workspace": "/root/molt",
+      "workspace": "/root/openclaw",
       "compaction": {
         "mode": "safeguard"
       },
@@ -192,19 +185,19 @@ cat >"$CONFIG_FILE" <<EOF
     "list": [
       {
         "id": "main",
-        "name": "Moltbot",
+        "name": "OpenClaw",
         "default": true,
-        "workspace": "/root/molt"
+        "workspace": "/root/openclaw"
       },
       {
         "id": "linkding",
         "name": "Linkding Agent",
-        "workspace": "/root/molt-linkding"
+        "workspace": "/root/openclaw-linkding"
       },
       {
         "id": "dbadmin",
         "name": "DB Administrator",
-        "workspace": "/root/molt-dbadmin"
+        "workspace": "/root/openclaw-dbadmin"
       }
     ]
   },
@@ -247,7 +240,7 @@ cat >"$CONFIG_FILE" <<EOF
     }
   },
   "gateway": {
-    "port": ${CLAWDBOT_GATEWAY_PORT:-18789},
+    "port": ${OPENCLAW_GATEWAY_PORT:-18789},
     "mode": "local",
     "bind": "lan",
     "controlUi": {
@@ -303,30 +296,24 @@ fi
 
 # Update TOKEN if it was not set (e.g. if config already existed)
 if [ -z "$TOKEN" ]; then
-  TOKEN="$(jq -r '.gateway.auth.token' "$CONFIG_FILE" 2>/dev/null || jq -r '.gateway.auth.token' "$MOLT_STATE/clawdbot.json" 2>/dev/null || echo "")"
+  TOKEN="$(jq -r '.gateway.auth.token' "$CONFIG_FILE" 2>/dev/null || echo "")"
 fi
 
-# Ensure all possible naming variations exist on every boot for robustness
-cp -f "$CONFIG_FILE" "$MOLT_STATE/clawdbot.json" 2>/dev/null || true
-cp -f "$CONFIG_FILE" "$CLAW_STATE/moltbot.json" 2>/dev/null || true
-cp -f "$CONFIG_FILE" "$CLAW_STATE/clawdbot.json" 2>/dev/null || true
-ln -sf "$CONFIG_FILE" "$MOLT_STATE/config.json" 2>/dev/null || true
-ln -sf "$CONFIG_FILE" "$CLAW_STATE/config.json" 2>/dev/null || true
+# Create symlink for config.json
+ln -sf "$CONFIG_FILE" "$OPENCLAW_STATE/config.json" 2>/dev/null || true
 
 # Run doctor --fix to handle any migrations or permission issues automatically
-if command -v moltbot >/dev/null 2>&1; then
-  echo "🏥 RUNNING MOLTBOT DOCTOR..."
-  moltbot doctor --fix || true
+if command -v openclaw >/dev/null 2>&1; then
+  echo "🏥 RUNNING OPENCLAW DOCTOR..."
+  openclaw doctor --fix || true
 fi
 
 # Seed Agent Workspaces
 seed_agent() {
   local id="$1"
   local name="$2"
-  local id="$1"
-  local name="$2"
-  local dir="/root/molt-$id"
-  if [ "$id" = "main" ]; then dir="/root/molt"; fi
+  local dir="/root/openclaw-$id"
+  if [ "$id" = "main" ]; then dir="/root/openclaw"; fi
 
   if ! mkdir -p "$dir" 2>/dev/null; then
     echo "⚠️ WARNING: Could not create directory $dir. Check volume permissions."
@@ -358,42 +345,41 @@ EOF
         ;;
       *)
         cat >"$dir/SOUL.md" <<EOF
-# SOUL.md - Moltbot
-You are Moltbot, a helpful and premium AI assistant.
+# SOUL.md - OpenClaw
+You are OpenClaw, a helpful and premium AI assistant.
 EOF
         ;;
     esac
   fi
 }
 
-seed_agent "main" "Moltbot"
+seed_agent "main" "OpenClaw"
 seed_agent "linkding" "Linkding Agent"
 seed_agent "dbadmin" "DB Administrator"
 
 # Export state directory for the binary
-export CLAWDBOT_STATE_DIR="$MOLT_STATE"
-export MOLTBOT_STATE_DIR="$MOLT_STATE"
+export OPENCLAW_STATE_DIR="$OPENCLAW_STATE"
 
-# Resolve public URL (Coolify injects SERVICE_URL_MOLTBOT_18789 or SERVICE_FQDN_MOLTBOT)
-BASE_URL="${SERVICE_URL_MOLTBOT_18789:-${SERVICE_FQDN_MOLTBOT:+https://$SERVICE_FQDN_MOLTBOT}}"
+# Resolve public URL (Coolify injects SERVICE_URL_OPENCLAW_18789 or SERVICE_FQDN_OPENCLAW)
+BASE_URL="${SERVICE_URL_OPENCLAW_18789:-${SERVICE_FQDN_OPENCLAW:+https://$SERVICE_FQDN_OPENCLAW}}"
 BASE_URL="${BASE_URL:-http://localhost:18789}"
 
-if [ "${CLAWDBOT_PRINT_ACCESS:-1}" = "1" ]; then
-  if [ "${MOLT_BOT_BETA:-false}" = "true" ]; then
-    echo "🧪 MOLTBOT BETA MODE ACTIVE"
+if [ "${OPENCLAW_PRINT_ACCESS:-1}" = "1" ]; then
+  if [ "${OPENCLAW_BETA:-false}" = "true" ]; then
+    echo "🧪 OPENCLAW BETA MODE ACTIVE"
   fi
   echo ""
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo "🦞 MOLTBOT READY"
+  echo "🦞 OPENCLAW READY"
   echo ""
   echo "Dashboard:"
   echo "$BASE_URL/?token=$TOKEN"
   echo ""
   echo "WebSocket:"
-  echo "${BASE_URL/https/wss}/__clawdbot__/ws"
+  echo "${BASE_URL/https/wss}/__openclaw__/ws"
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo ""
 fi
 
-# Run the moltbot gateway using the global binary
-exec moltbot gateway
+# Run the openclaw gateway using the global binary
+exec openclaw gateway
